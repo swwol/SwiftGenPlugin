@@ -15,8 +15,8 @@ enum Build {
     case let .package(context, target):
       return [context.package.directory, target.directory]
 #if canImport(XcodeProjectPlugin)
-    case let .xcode(context, _):
-      return [context.xcodeProject.directory]
+    case let .xcode(context, target):
+      return [context.xcodeProject.directory, context.xcodeProject.directory.appending(target.displayName)]
 #endif
     }
   }
@@ -58,7 +58,7 @@ enum Build {
       """
 #if canImport(XcodeProjectPlugin)
     case .xcode:
-      return "include a shared `swiftgen.yml` at the root of the project directory"
+      return "include a shared `swiftgen.yml` at the root of the project directory, or in a subdirectory with the target name"
 #endif
     }
   }
