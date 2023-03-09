@@ -1,91 +1,22 @@
-//
-// SwiftGenPlugin
-// Copyright © 2022 SwiftGen
-// MIT Licence
-//
-
 import Foundation
 import PackagePlugin
 
 @main
 struct SwiftGenPlugin: BuildToolPlugin {
   func createBuildCommands(context: PluginContext, target: Target) throws -> [Command] {
-
-    try createBuildCommands(swiftGenContext: context, swiftGenTarget: target as! SwiftGenTarget)
+    try createBuildCommands(for: .package(context, target))
   }
 
-  // MARK: - Common
-
-  func createBuildCommands(swiftGenContext: SwiftGenContext, swiftGenTarget: SwiftGenTarget) throws -> [Command] {
+  func createBuildCommands(for build: Build) throws -> [Command] {
     let fileManager = FileManager.default
 
-    // Possible paths where there may be a config file (root of package, xcode directory, ortarget dir.)
-    let configurations: [Path] = [swiftGenContext.root, swiftGenTarget.directory]
-      .compactMap { $0?.appending("swiftgen.yml") }
-      .filter { fileManager.fileExists(atPath: $0.string) }
-
     // Validate paths list
-    guard validate(configurations: configurations, target: swiftGenTarget) else {
+    guard build.hasConfig() else  {
       return []
     }
-
     // Clear the SwiftGen plugin's directory (in case of dangling files)
-    fileManager.forceClean(directory: swiftGenContext.pluginWorkDirectory)
-
-    return try configurations.map { configuration in
-      try .swiftgen(using: configuration, context: swiftGenContext, target: swiftGenTarget)
-    }
-  }
-}
-
-// MARK: - Helpers
-
-private extension SwiftGenPlugin {
-  /// Validate the given list of configurations
-  func validate(configurations: [Path], target: SwiftGenTarget) -> Bool {
-    guard !configurations.isEmpty else {
-
-      let expectedConfigLocation: String
-
-      if target.directory == nil {
-        //the target was an XcodeTarget
-        expectedConfigLocation =  "at the root of the project directory"
-      } else {
-        expectedConfigLocation = """
-        in the target's source directory, or include a shared `swiftgen.yml` at the \
-        package's root.
-      """
-      }
-
-      Diagnostics.error("""
-      No SwiftGen configurations found for target \(target.name). If you would like to generate sources for this \
-      target include a `swiftgen.yml` \(expectedConfigLocation)
-      """ )
-      return false
-    }
-    return true
-  }
-}
-
-private extension Command {
-  static func swiftgen(using configuration: Path, context: SwiftGenContext, target: SwiftGenTarget) throws -> Command {
-    .prebuildCommand(
-      displayName: "SwiftGen BuildTool Plugin",
-      executable: try context.tool(named: "swiftgen").path,
-      arguments: [
-        "config",
-        "run",
-        "--verbose",
-        "--config", "\(configuration)"
-      ],
-      environment: [
-        "PROJECT_DIR": context.root,
-        "TARGET_NAME": target.name,
-        "PRODUCT_MODULE_NAME": target.moduleName,
-        "DERIVED_SOURCES_DIR": context.pluginWorkDirectory
-      ],
-      outputFilesDirectory: context.pluginWorkDirectory
-    )
+    fileManager.forceClean(directory: build.context.pluginWorkDirectory)
+    return try build.commands()
   }
 }
 
